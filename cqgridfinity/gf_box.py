@@ -128,7 +128,7 @@ class GridfinityBox(GridfinityObject):
             )
         if self.length_div:
             xl = (self.inner_l - GR_DIV_WALL * (self.length_div)) / (
-                self.length_div + 1
+                    self.length_div + 1
             )
             s.append(
                 "  %dx lengthwise divisions for %.2f mm compartment lengths"
@@ -170,45 +170,45 @@ class GridfinityBox(GridfinityObject):
         if self.wall_th < 0.5:
             raise ValueError("Wall thickness must be at least 0.5 mm")
         r = self.render_shell()
-        rd = self.render_dividers()
-        rs = self.render_scoops()
-        rl = self.render_labels()
-        for e in (rd, rl, rs):
-            if e is not None:
-                r = r.union(e)
-        if not self.solid and self.fillet_interior:
-            heights = [GR_FLOOR]
-            if self.labels:
-                heights.append(self.safe_label_height(backwall=True, from_bottom=True))
-                heights.append(self.safe_label_height(backwall=False, from_bottom=True))
-            bs = (
-                HasZCoordinateSelector(heights, min_points=1, tolerance=0.5)
-                + VerticalEdgeSelector(">5")
-                - HasZCoordinateSelector("<%.2f" % (self.floor_h))
-            )
-            if self.lite_style and self.scoops:
-                bs = bs - HasZCoordinateSelector("<=%.2f" % (self.floor_h))
-                bs = bs - VerticalEdgeSelector()
-            r = self.safe_fillet(r, bs, self.safe_fillet_rad)
-
-            if self.lite_style and not self.has_dividers:
-                bs = FlatEdgeSelector(self.floor_h)
-                if self.wall_th < 1.2:
-                    r = self.safe_fillet(r, bs, 0.5)
-                elif self.wall_th < 1.25:
-                    r = self.safe_fillet(r, bs, 0.25)
-
-            if not self.labels and self.has_dividers:
-                bs = VerticalEdgeSelector(
-                    GR_TOPSIDE_H, tolerance=0.05
-                ) & HasZCoordinateSelector(GRHU * self.height_u - GR_BASE_HEIGHT)
-                r = self.safe_fillet(r, bs, GR_TOPSIDE_H - EPS)
-
-        if self.holes:
-            r = self.render_holes(r)
-        r = r.translate((-self.half_l, -self.half_w, GR_BASE_HEIGHT))
-        if self.unsupported_holes:
-            r = self.render_hole_fillers(r)
+        # rd = self.render_dividers()
+        # rs = self.render_scoops()
+        # rl = self.render_labels()
+        # for e in (rd, rl, rs):
+        #     if e is not None:
+        #         r = r.union(e)
+        # if not self.solid and self.fillet_interior:
+        #     heights = [GR_FLOOR]
+        #     if self.labels:
+        #         heights.append(self.safe_label_height(backwall=True, from_bottom=True))
+        #         heights.append(self.safe_label_height(backwall=False, from_bottom=True))
+        #     bs = (
+        #         HasZCoordinateSelector(heights, min_points=1, tolerance=0.5)
+        #         + VerticalEdgeSelector(">5")
+        #         - HasZCoordinateSelector("<%.2f" % (self.floor_h))
+        #     )
+        #     if self.lite_style and self.scoops:
+        #         bs = bs - HasZCoordinateSelector("<=%.2f" % (self.floor_h))
+        #         bs = bs - VerticalEdgeSelector()
+        #     r = self.safe_fillet(r, bs, self.safe_fillet_rad)
+        #
+        #     if self.lite_style and not self.has_dividers:
+        #         bs = FlatEdgeSelector(self.floor_h)
+        #         if self.wall_th < 1.2:
+        #             r = self.safe_fillet(r, bs, 0.5)
+        #         elif self.wall_th < 1.5:
+        #             r = self.safe_fillet(r, bs, 0.25)
+        #
+        #     if not self.labels and self.has_dividers:
+        #         bs = VerticalEdgeSelector(
+        #             GR_TOPSIDE_H, tolerance=0.05
+        #         ) & HasZCoordinateSelector(GRHU * self.height_u - GR_BASE_HEIGHT)
+        #         r = self.safe_fillet(r, bs, GR_TOPSIDE_H - EPS)
+        #
+        # if self.holes:
+        #     r = self.render_holes(r)
+        # r = r.translate((-self.half_l, -self.half_w, GR_BASE_HEIGHT))
+        # if self.unsupported_holes:
+        #     r = self.render_hole_fillers(r)
         return r
 
     @property
@@ -260,29 +260,43 @@ class GridfinityBox(GridfinityObject):
         """Renders the interior cutting solid of the box."""
         wall_u = self.wall_th - GR_WALL
         wall_h = self.int_height + wall_u
+        # print('wall_u', wall_u)
         under_h = ((GR_UNDER_H - wall_u) * SQRT2, 45)
         profile = GR_NO_PROFILE if self.no_lip else [under_h, *GR_LIP_PROFILE[1:]]
-        profile = [wall_h, *profile]
+        # print('profile for self.no_lip==', self.no_lip)
+        #
+        print('self.height', self.height)
+        print('GR_LIP_H', GR_LIP_H)
+        print('GR_BOT_H', GR_BOT_H)
+        print('self.wall_th', self.wall_th)
+        print('self.int_height', self.int_height)
+        # print('self.max_height', self.max_height)
+        print('profile 1 ', profile)
+        profile = [wall_h + GR_TOL + 0.336, *profile]
         if self.int_height < 0:
-            profile = [self.height - GR_BOT_H]
+            profile = [self.height - GR_BOT_H + GR_TOL + 0.336, (self.wall_th * SQRT2, -45), ]
+
+        print('profile 2 ', profile)
         rci = self.extrude_profile(
             rounded_rect_sketch(*self.inner_dim, self.inner_rad), profile
         )
-        rci = rci.translate((*self.half_dim, self.floor_h))
-        if self.solid or force_solid:
-            hs = self.max_height * self.solid_ratio
-            ri = rounded_rect_sketch(*self.inner_dim, self.inner_rad)
-            rf = cq.Workplane("XY").placeSketch(ri).extrude(hs)
-            rf = rf.translate((*self.half_dim, self.floor_h))
-            rci = rci.cut(rf)
-        if self.scoops and not self.no_lip and not self.lite_style:
-            rf = (
-                cq.Workplane("XY")
-                .rect(self.inner_l, 2 * self.under_h)
-                .extrude(self.max_height)
-                .translate((self.half_l, -self.half_in, self.floor_h))
-            )
-            rci = rci.cut(rf)
+
+        rci = rci.translate((*self.half_dim, self.floor_h - GR_BASE_CLR - 0.336))
+
+        # if self.solid or force_solid:
+        #     hs = self.max_height * self.solid_ratio
+        #     ri = rounded_rect_sketch(*self.inner_dim, self.inner_rad)
+        #     rf = cq.Workplane("XY").placeSketch(ri).extrude(hs)
+        #     rf = rf.translate((*self.half_dim, self.floor_h))
+        #     rci = rci.cut(rf)
+        # if self.scoops and not self.no_lip and not self.lite_style:
+        #     rf = (
+        #         cq.Workplane("XY")
+        #         .rect(self.inner_l, 2 * self.under_h)
+        #         .extrude(self.max_height)
+        #         .translate((self.half_l, -self.half_in, self.floor_h))
+        #     )
+        #     rci = rci.cut(rf)
         if self.lite_style:
             r = composite_from_pts(self.base_interior(), self.grid_centres)
             rci = rci.union(r)
@@ -318,16 +332,16 @@ class GridfinityBox(GridfinityObject):
     def render_shell(self, as_solid=False):
         """Renders the box shell without any added features."""
         r = self.extrude_profile(
-            rounded_rect_sketch(GRU, GRU, self.outer_rad + GR_BASE_CLR), GR_BOX_PROFILE
+            rounded_rect_sketch(GRU - GR_TOL, GRU - GR_TOL, self.outer_rad + GR_BASE_CLR), GR_BOX_PROFILE
         )
         r = r.translate((0, 0, -GR_BASE_CLR))
         r = r.mirror(mirrorPlane="XY")
         r = composite_from_pts(r, self.grid_centres)
-        rs = rounded_rect_sketch(*self.outer_dim, self.outer_rad)
+        rs = rounded_rect_sketch(*self.outer_dim, self.outer_rad)  # < WTF IS THAT???
         rw = (
             cq.Workplane("XY")
             .placeSketch(rs)
-            .extrude(self.bin_height - GR_BASE_CLR)
+            .extrude(self.bin_height)
             .translate((*self.half_dim, GR_BASE_CLR))
         )
         rc = (

@@ -66,8 +66,9 @@ GR_FILLET = 1.1  # inside filleting radius
 GR_FLOOR = GR_BOT_H - GR_BASE_HEIGHT  # floor offset
 
 # box/bin extrusion profile
-GR_BOX_CHAMF_H = 1.1313708 / SQRT2
-GR_BOX_TOP_CHAMF = GR_BASE_HEIGHT - GR_BOX_CHAMF_H - GR_STR_H + GR_BASE_CLR
+#LOWER PART of BOX
+GR_BOX_CHAMF_H = 0.8
+GR_BOX_TOP_CHAMF = 2.15 #GR_BASE_HEIGHT - GR_BOX_CHAMF_H - GR_STR_H + GR_BASE_CLR
 GR_BOX_PROFILE = (
     (GR_BOX_TOP_CHAMF * SQRT2, 45),
     GR_STR_H,
@@ -75,6 +76,7 @@ GR_BOX_PROFILE = (
 )
 
 # bin mating lip extrusion profile
+#UPPER LIP IN BOX
 GR_UNDER_H = 1.6
 GR_TOPSIDE_H = 1.2
 GR_LIP_PROFILE = (
@@ -82,14 +84,14 @@ GR_LIP_PROFILE = (
     GR_TOPSIDE_H,
     (0.7 * SQRT2, -45),
     1.8,
-    (1.3 * SQRT2, -45),
+    (1.9 * SQRT2, -45),
 )
-GR_LIP_H = 0
-for h in GR_LIP_PROFILE:
-    if isinstance(h, tuple):
-        GR_LIP_H += h[0] / SQRT2
-    else:
-        GR_LIP_H += h
+GR_LIP_H = 7.2
+# for h in GR_LIP_PROFILE:
+#     if isinstance(h, tuple):
+#         GR_LIP_H += h[0] / SQRT2
+#     else:
+#         GR_LIP_H += h
 GR_NO_PROFILE = (GR_LIP_H,)
 
 # bottom hole nominal dimensions

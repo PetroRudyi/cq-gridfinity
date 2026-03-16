@@ -78,7 +78,7 @@ class GridfinityObject:
 
     @property
     def height(self):
-        return 3.8 + GRHU * self.height_u
+        return 4.4 + GRHU * self.height_u
 
     @property
     def int_height(self):
