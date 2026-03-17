@@ -170,45 +170,48 @@ class GridfinityBox(GridfinityObject):
         if self.wall_th < 0.5:
             raise ValueError("Wall thickness must be at least 0.5 mm")
         r = self.render_shell()
-        # rd = self.render_dividers()
-        # rs = self.render_scoops()
-        # rl = self.render_labels()
-        # for e in (rd, rl, rs):
-        #     if e is not None:
-        #         r = r.union(e)
-        # if not self.solid and self.fillet_interior:
-        #     heights = [GR_FLOOR]
-        #     if self.labels:
-        #         heights.append(self.safe_label_height(backwall=True, from_bottom=True))
-        #         heights.append(self.safe_label_height(backwall=False, from_bottom=True))
-        #     bs = (
-        #         HasZCoordinateSelector(heights, min_points=1, tolerance=0.5)
-        #         + VerticalEdgeSelector(">5")
-        #         - HasZCoordinateSelector("<%.2f" % (self.floor_h))
-        #     )
-        #     if self.lite_style and self.scoops:
-        #         bs = bs - HasZCoordinateSelector("<=%.2f" % (self.floor_h))
-        #         bs = bs - VerticalEdgeSelector()
-        #     r = self.safe_fillet(r, bs, self.safe_fillet_rad)
-        #
-        #     if self.lite_style and not self.has_dividers:
-        #         bs = FlatEdgeSelector(self.floor_h)
-        #         if self.wall_th < 1.2:
-        #             r = self.safe_fillet(r, bs, 0.5)
-        #         elif self.wall_th < 1.5:
-        #             r = self.safe_fillet(r, bs, 0.25)
-        #
-        #     if not self.labels and self.has_dividers:
-        #         bs = VerticalEdgeSelector(
-        #             GR_TOPSIDE_H, tolerance=0.05
-        #         ) & HasZCoordinateSelector(GRHU * self.height_u - GR_BASE_HEIGHT)
-        #         r = self.safe_fillet(r, bs, GR_TOPSIDE_H - EPS)
-        #
-        # if self.holes:
-        #     r = self.render_holes(r)
-        # r = r.translate((-self.half_l, -self.half_w, GR_BASE_HEIGHT))
-        # if self.unsupported_holes:
-        #     r = self.render_hole_fillers(r)
+
+        ### need check
+        rd = self.render_dividers()
+        rs = self.render_scoops()
+        rl = self.render_labels()
+        for e in (rd, rl, rs):
+            if e is not None:
+                r = r.union(e)
+        if not self.solid and self.fillet_interior:
+            heights = [GR_FLOOR]
+            if self.labels:
+                heights.append(self.safe_label_height(backwall=True, from_bottom=True))
+                heights.append(self.safe_label_height(backwall=False, from_bottom=True))
+            bs = (
+                HasZCoordinateSelector(heights, min_points=1, tolerance=0.5)
+                + VerticalEdgeSelector(">5")
+                - HasZCoordinateSelector("<%.2f" % (self.floor_h))
+            )
+            if self.lite_style and self.scoops:
+                bs = bs - HasZCoordinateSelector("<=%.2f" % (self.floor_h))
+                bs = bs - VerticalEdgeSelector()
+            r = self.safe_fillet(r, bs, self.safe_fillet_rad)
+
+            if self.lite_style and not self.has_dividers:
+                bs = FlatEdgeSelector(self.floor_h)
+                if self.wall_th < 1.2:
+                    r = self.safe_fillet(r, bs, 0.5)
+                elif self.wall_th < 1.5:
+                    r = self.safe_fillet(r, bs, 0.25)
+
+            if not self.labels and self.has_dividers:
+                bs = VerticalEdgeSelector(
+                    GR_TOPSIDE_H, tolerance=0.05
+                ) & HasZCoordinateSelector(GRHU * self.height_u - GR_BASE_HEIGHT)
+                r = self.safe_fillet(r, bs, GR_TOPSIDE_H - EPS)
+
+        if self.holes:
+            r = self.render_holes(r)
+        r = r.translate((-self.half_l, -self.half_w, GR_BASE_HEIGHT))
+        if self.unsupported_holes:
+            r = self.render_hole_fillers(r)
+        ### need check end
         return r
 
     @property
