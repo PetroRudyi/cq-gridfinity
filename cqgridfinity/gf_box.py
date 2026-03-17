@@ -419,23 +419,14 @@ class GridfinityBox(GridfinityObject):
 
     @property
     def _divider_height(self):
-        """Height of divider walls.
-        For non-solid boxes — full interior height.
-        For partial-solid boxes — only the unfilled portion above the solid fill level."""
-        if not self.solid:
-            return self.max_height
-        solid_h = self.max_height * self.solid_ratio
-        return self.max_height - solid_h
+        """Height of divider walls — full interior height from the actual floor."""
+        return self.max_height + GR_BASE_CLR + 0.336
 
     @property
     def _divider_floor(self):
         """Z-offset for the bottom of divider walls.
-        For non-solid boxes — floor_h (bottom of interior).
-        For partial-solid boxes — top of the solid fill level."""
-        if not self.solid:
-            return self.floor_h
-        solid_h = self.max_height * self.solid_ratio
-        return self.floor_h + solid_h
+        Matches the actual interior floor from render_interior."""
+        return self.floor_h - GR_BASE_CLR - 0.336
 
     def render_dividers(self):
         r = None
