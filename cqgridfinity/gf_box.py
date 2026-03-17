@@ -230,11 +230,11 @@ class GridfinityBox(GridfinityObject):
         #         ) & HasZCoordinateSelector(GRHU * self.height_u - GR_BASE_HEIGHT)
         #         r = self.safe_fillet(r, bs, GR_TOPSIDE_H - EPS)
         #
-        # if self.holes:
-        #     r = self.render_holes(r)
-        # r = r.translate((-self.half_l, -self.half_w, GR_BASE_HEIGHT))
-        # if self.unsupported_holes:
-        #     r = self.render_hole_fillers(r)
+        if self.holes:
+            r = self.render_holes(r)
+        r = r.translate((-self.half_l, -self.half_w, GR_BASE_HEIGHT))
+        if self.unsupported_holes:
+            r = self.render_hole_fillers(r)
         return r
 
     @property
