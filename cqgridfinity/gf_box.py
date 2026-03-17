@@ -562,7 +562,8 @@ class GridfinityBox(GridfinityObject):
             .extrude(GR_HOLE_SLICE)
         )
         xo = self.hole_diam / 2
-        rs = composite_from_pts(rc, [(-xo, 0, GR_HOLE_H), (xo, 0, GR_HOLE_H)])
+        filler_z = GR_HOLE_H + GR_BASE_CLR
+        rs = composite_from_pts(rc, [(-xo, 0, filler_z), (xo, 0, filler_z)])
         rs = composite_from_pts(rs, self.hole_centres)
         return obj.union(rs.translate((-self.half_l, self.half_w, 0)))
 
