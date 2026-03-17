@@ -409,25 +409,59 @@ class GridfinityBox(GridfinityObject):
             self.width_div, self.inner_w, self.width_u, self.width_div_ratio
         )
 
+    @property
+    def _dividers_allowed(self):
+        """Dividers are allowed for non-solid boxes,
+        or solid boxes with solid_ratio < 0.95 (partial fill)."""
+        if not self.solid:
+            return True
+        return self.solid_ratio < 0.95
+
+    @property
+    def _divider_height(self):
+        """Height of divider walls.
+        For non-solid boxes — full interior height.
+        For partial-solid boxes — only the unfilled portion above the solid fill level."""
+        if not self.solid:
+            return self.max_height
+        solid_h = self.max_height * self.solid_ratio
+        return self.max_height - solid_h
+
+    @property
+    def _divider_floor(self):
+        """Z-offset for the bottom of divider walls.
+        For non-solid boxes — floor_h (bottom of interior).
+        For partial-solid boxes — top of the solid fill level."""
+        if not self.solid:
+            return self.floor_h
+        solid_h = self.max_height * self.solid_ratio
+        return self.floor_h + solid_h
+
     def render_dividers(self):
         r = None
-        if self.length_div > 0 and not self.solid:
+        if not self._dividers_allowed:
+            return r
+
+        div_h = self._divider_height
+        div_floor = self._divider_floor
+
+        if self.length_div > 0:
             wall_w = (
                 cq.Workplane("XY")
                 .rect(GR_DIV_WALL, self.outer_w)
-                .extrude(self.max_height)
-                .translate((0, 0, self.floor_h))
+                .extrude(div_h)
+                .translate((0, 0, div_floor))
             )
             x_positions = self._length_div_positions()
             pts = [(xp, self.half_w) for xp in x_positions]
             r = composite_from_pts(wall_w, pts)
 
-        if self.width_div > 0 and not self.solid:
+        if self.width_div > 0:
             wall_l = (
                 cq.Workplane("XY")
                 .rect(self.outer_l, GR_DIV_WALL)
-                .extrude(self.max_height)
-                .translate((0, 0, self.floor_h))
+                .extrude(div_h)
+                .translate((0, 0, div_floor))
             )
             y_positions = self._width_div_positions()
             pts = [(self.half_l, yp) for yp in y_positions]
