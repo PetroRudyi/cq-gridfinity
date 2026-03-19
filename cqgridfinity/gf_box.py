@@ -320,7 +320,7 @@ class GridfinityBox(GridfinityObject):
             rf = rf.translate((*self.half_dim, self.floor_h))
             rci = rci.cut(rf)
 
-        if self.scoops and not self.no_lip and not self.lite_style:
+        if self.scoops and not self.no_lip:
             if self.scoop_axis in ("length", "both"):
                 rf = (
                     cq.Workplane("XY")
