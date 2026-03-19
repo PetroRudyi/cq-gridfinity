@@ -234,7 +234,12 @@ class GridfinityObject:
                 fn = fn + "_solid"
             else:
                 if self.scoops:
-                    fn = fn + "_scoops"
+                    if getattr(self, 'scoop_axis', 'length') == "both":
+                        fn = fn + "_scoops_both"
+                    elif getattr(self, 'scoop_axis', 'length') == "width":
+                        fn = fn + "_scoops_w"
+                    else:
+                        fn = fn + "_scoops"
                 if self.labels:
                     fn = fn + "_labels"
         elif isinstance(self, GridfinityRuggedBox):

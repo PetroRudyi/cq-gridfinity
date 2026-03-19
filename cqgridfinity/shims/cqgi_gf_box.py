@@ -20,6 +20,7 @@ label_width = 12.0  # width of the label strip
 label_height = 10.0  # thickness of label overhang
 label_lip_height = 0.8  # thickness of label vertical lip
 scoop_rad = 12.0  # radius of optional interior scoops
+scoop_axis = "length"  # "length", "width", or "both"
 fillet_interior = True
 wall_th = 1.0
 
@@ -41,6 +42,7 @@ result = GridfinityBox(
     label_height=label_height,
     label_lip_height=label_lip_height,
     scoop_rad=scoop_rad,
+    scoop_axis=scoop_axis,
     fillet_interior=fillet_interior,
     wall_th=wall_th,
 ).render().val()

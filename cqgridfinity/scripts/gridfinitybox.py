@@ -85,6 +85,12 @@ def main():
         help="Add finger scoops against each length-wise back wall",
     )
     parser.add_argument(
+        "--scoop-axis",
+        default="length",
+        choices=["length", "width", "both"],
+        help="Direction of scoops: length (default), width, or both",
+    )
+    parser.add_argument(
         "-l",
         "--labels",
         action="store_true",
@@ -159,6 +165,7 @@ def main():
         unsupported_holes=argsd["unsupported"],
         no_lip=argsd["nolip"],
         scoops=argsd["scoops"],
+        scoop_axis=argsd["scoop_axis"],
         labels=argsd["labels"],
         lite_style=argsd["ecolite"],
         solid=argsd["solid"],

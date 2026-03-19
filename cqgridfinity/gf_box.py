@@ -60,6 +60,8 @@ class GridfinityBox(GridfinityObject):
     - label_width : width of top label ledge face overhang
     - label_height : height of label ledge overhang
     - scoop_rad : radius of the bottom scoop feature
+    - scoop_axis : direction of scoops: "length" (default, along front wall),
+                   "width" (along side wall), or "both"
     - wall_th : wall thickness
     - hole_diam : magnet/counterbore bolt hole diameter
 
@@ -86,6 +88,7 @@ class GridfinityBox(GridfinityObject):
         self.label_height = 10  # thickness of label overhang
         self.label_lip_height = 0.8  # thickness of label vertical lip
         self.scoop_rad = 14  # radius of optional interior scoops
+        self.scoop_axis = "length"  # "length", "width", or "both"
         self.fillet_interior = True
         self.wall_th = GR_WALL
         self.hole_diam = GR_HOLE_D  # magnet/bolt hole diameter
@@ -122,7 +125,8 @@ class GridfinityBox(GridfinityObject):
             if self.unsupported_holes:
                 s.append("  Holes are 3D printer friendly and can be unsupported")
         if self.scoops:
-            s.append("  Lengthwise scoops with %.2f mm radius" % (self.scoop_rad))
+            axis_label = {"length": "Lengthwise", "width": "Widthwise", "both": "Both axes"}
+            s.append("  %s scoops with %.2f mm radius" % (axis_label.get(self.scoop_axis, "Lengthwise"), self.scoop_rad))
         if self.labels:
             s.append(
                 "  Lengthwise label shelf %.2f mm wide with %.2f mm overhang"
@@ -466,34 +470,57 @@ class GridfinityBox(GridfinityObject):
             r = r.intersect(self.render_shell(as_solid=True))
         return r
 
-    def render_scoops(self):
-        if not self.scoops:
-            return None
-        if self.solid and self.solid_ratio >= 0.95:
-            return None
-        # front wall scoop
-        # prevent the scoop radius exceeding the internal height
-        srad = min(self.scoop_rad, self.int_height - 0.1)
-        if srad <= 0:
-            return None
+    def _render_length_scoops(self, srad, zo):
+        """Scoops along the front wall (Y-axis), extruded in the length (X) direction."""
         rs = cq.Sketch().rect(srad, srad).vertices(">X and >Y").circle(srad, mode="s")
         rsc = cq.Workplane("YZ").placeSketch(rs).extrude(self.inner_l)
-        rsc = rsc.translate((0, 0, srad / 2 + GR_FLOOR))
+        rsc = rsc.translate((0, 0, srad / 2 + GR_FLOOR - GR_BASE_CLR - 0.336))
         yo = -self.half_in + srad / 2
-        # offset front wall scoop by top lip overhang if applicable
         if not self.no_lip and not self.lite_style:
             yo += self.under_h
-        zo = -GR_BOT_H + self.wall_th if self.lite_style else 0
         rs = rsc.translate((-self.half_in, yo, zo))
-        # intersect to prevent solids sticking out of rounded corners
         r = rs.intersect(self.interior_solid)
         if self.width_div > 0:
-            # add scoops along each internal dividing wall in the width dimension
             y_positions = self._width_div_positions()
             pts = [(-self.half_in, yp) for yp in y_positions]
             rs = composite_from_pts(rsc, pts)
             r = r.union(rs.translate((0, GR_DIV_WALL / 2 + srad / 2, zo)))
             r = r.intersect(self.render_shell(as_solid=True))
+        return r
+
+    def _render_width_scoops(self, srad, zo):
+        """Scoops along the side wall (X-axis), extruded in the width (Y) direction."""
+        rs = cq.Sketch().rect(srad, srad).vertices(">X and >Y").circle(srad, mode="s")
+        rsc = cq.Workplane("XZ").placeSketch(rs).extrude(self.inner_w)
+        rsc = rsc.translate((0, 0, srad / 2 + GR_FLOOR - GR_BASE_CLR - 0.336))
+        xo = -self.half_in + srad / 2
+        if not self.no_lip and not self.lite_style:
+            xo += self.under_h
+        rs = rsc.translate((xo, -self.half_in, zo))
+        r = rs.intersect(self.interior_solid)
+        if self.length_div > 0:
+            x_positions = self._length_div_positions()
+            pts = [(xp, -self.half_in) for xp in x_positions]
+            rs = composite_from_pts(rsc, pts)
+            r = r.union(rs.translate((GR_DIV_WALL / 2 + srad / 2, 0, zo)))
+            r = r.intersect(self.render_shell(as_solid=True))
+        return r
+
+    def render_scoops(self):
+        if not self.scoops:
+            return None
+        if self.solid and self.solid_ratio >= 0.95:
+            return None
+        srad = min(self.scoop_rad, self.int_height - 0.1)
+        if srad <= 0:
+            return None
+        zo = -GR_BOT_H + self.wall_th if self.lite_style else 0
+        r = None
+        if self.scoop_axis in ("length", "both"):
+            r = self._render_length_scoops(srad, zo)
+        if self.scoop_axis in ("width", "both"):
+            rw = self._render_width_scoops(srad, zo)
+            r = r.union(rw) if r is not None else rw
         return r
 
     def render_labels(self):
