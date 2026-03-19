@@ -491,8 +491,9 @@ class GridfinityBox(GridfinityObject):
     def _render_width_scoops(self, srad, zo):
         """Scoops along the side wall (X-axis), extruded in the width (Y) direction."""
         rs = cq.Sketch().rect(srad, srad).vertices(">X and >Y").circle(srad, mode="s")
+        # XZ plane normal is -Y, so extrude goes in -Y; offset by inner_w to place correctly
         rsc = cq.Workplane("XZ").placeSketch(rs).extrude(self.inner_w)
-        rsc = rsc.translate((0, 0, srad / 2 + GR_FLOOR - GR_BASE_CLR - 0.336))
+        rsc = rsc.translate((0, self.inner_w, srad / 2 + GR_FLOOR - GR_BASE_CLR - 0.336))
         xo = -self.half_in + srad / 2
         if not self.no_lip and not self.lite_style:
             xo += self.under_h
