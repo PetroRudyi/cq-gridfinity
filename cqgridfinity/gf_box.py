@@ -320,14 +320,23 @@ class GridfinityBox(GridfinityObject):
             rf = rf.translate((*self.half_dim, self.floor_h))
             rci = rci.cut(rf)
 
-        # if self.scoops and not self.no_lip and not self.lite_style:
-        #     rf = (
-        #         cq.Workplane("XY")
-        #         .rect(self.inner_l, 2 * self.under_h)
-        #         .extrude(self.max_height)
-        #         .translate((self.half_l, -self.half_in, self.floor_h))
-        #     )
-        #     rci = rci.cut(rf)
+        if self.scoops and not self.no_lip and not self.lite_style:
+            if self.scoop_axis in ("length", "both"):
+                rf = (
+                    cq.Workplane("XY")
+                    .rect(self.inner_l, 2 * self.under_h)
+                    .extrude(self.max_height)
+                    .translate((self.half_l, -self.half_in, self.floor_h))
+                )
+                rci = rci.cut(rf)
+            if self.scoop_axis in ("width", "both"):
+                rf = (
+                    cq.Workplane("XY")
+                    .rect(2 * self.under_h, self.inner_w)
+                    .extrude(self.max_height)
+                    .translate((-self.half_in, self.half_w, self.floor_h))
+                )
+                rci = rci.cut(rf)
         if self.lite_style:
             r = composite_from_pts(self.base_interior(), self.grid_centres)
             rci = rci.union(r)
