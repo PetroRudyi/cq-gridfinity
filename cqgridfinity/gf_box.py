@@ -202,8 +202,8 @@ class GridfinityBox(GridfinityObject):
         rd = self.render_dividers()
 
         rs = self.render_scoops()
-        # rl = self.render_labels()
-        for e in (rd, rs,):# rl, rs):
+        rl = self.render_labels()
+        for e in (rd, rl, rs):
             if e is not None:
                 r = r.union(e)
         # if not self.solid and self.fillet_interior:
