@@ -197,9 +197,9 @@ class GridfinityBox(GridfinityObject):
 
         rd = self.render_dividers()
 
-        # rs = self.render_scoops()
+        rs = self.render_scoops()
         # rl = self.render_labels()
-        for e in (rd,):#, rl, rs):
+        for e in (rd, rs,):# rl, rs):
             if e is not None:
                 r = r.union(e)
         # if not self.solid and self.fillet_interior:
@@ -461,14 +461,21 @@ class GridfinityBox(GridfinityObject):
                 r = r.union(rw)
             else:
                 r = rw
+        # clip dividers to the shell shape to prevent protrusion at rounded corners
+        if r is not None:
+            r = r.intersect(self.render_shell(as_solid=True))
         return r
 
     def render_scoops(self):
-        if not self.scoops or self.solid:
+        if not self.scoops:
+            return None
+        if self.solid and self.solid_ratio >= 0.95:
             return None
         # front wall scoop
         # prevent the scoop radius exceeding the internal height
         srad = min(self.scoop_rad, self.int_height - 0.1)
+        if srad <= 0:
+            return None
         rs = cq.Sketch().rect(srad, srad).vertices(">X and >Y").circle(srad, mode="s")
         rsc = cq.Workplane("YZ").placeSketch(rs).extrude(self.inner_l)
         rsc = rsc.translate((0, 0, srad / 2 + GR_FLOOR))
