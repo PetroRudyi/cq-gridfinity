@@ -321,20 +321,21 @@ class GridfinityBox(GridfinityObject):
             rci = rci.cut(rf)
 
         if self.scoops and not self.no_lip:
+            cut_h = self.floor_h + self.max_height
             if self.scoop_axis in ("length", "both"):
                 rf = (
                     cq.Workplane("XY")
                     .rect(self.inner_l, 2 * self.under_h)
-                    .extrude(self.max_height)
-                    .translate((self.half_l, -self.half_in, self.floor_h))
+                    .extrude(cut_h)
+                    .translate((self.half_l, -self.half_in, 0))
                 )
                 rci = rci.cut(rf)
             if self.scoop_axis in ("width", "both"):
                 rf = (
                     cq.Workplane("XY")
                     .rect(2 * self.under_h, self.inner_w)
-                    .extrude(self.max_height)
-                    .translate((-self.half_in, self.half_w, self.floor_h))
+                    .extrude(cut_h)
+                    .translate((-self.half_in, self.half_w, 0))
                 )
                 rci = rci.cut(rf)
         if self.lite_style:
@@ -485,7 +486,7 @@ class GridfinityBox(GridfinityObject):
         rsc = cq.Workplane("YZ").placeSketch(rs).extrude(self.inner_l)
         rsc = rsc.translate((0, 0, srad / 2 + GR_FLOOR - GR_BASE_CLR - 0.336))
         yo = -self.half_in + srad / 2
-        if not self.no_lip and not self.lite_style:
+        if not self.no_lip:
             yo += self.under_h
         rs = rsc.translate((-self.half_in, yo, zo))
         r = rs.intersect(self.interior_solid)
@@ -504,7 +505,7 @@ class GridfinityBox(GridfinityObject):
         rsc = cq.Workplane("XZ").placeSketch(rs).extrude(self.inner_w)
         rsc = rsc.translate((0, self.inner_w, srad / 2 + GR_FLOOR - GR_BASE_CLR - 0.336))
         xo = -self.half_in + srad / 2
-        if not self.no_lip and not self.lite_style:
+        if not self.no_lip:
             xo += self.under_h
         rs = rsc.translate((xo, -self.half_in, zo))
         r = rs.intersect(self.interior_solid)
