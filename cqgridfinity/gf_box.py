@@ -92,6 +92,7 @@ class GridfinityBox(GridfinityObject):
         self.fillet_interior = True
         self.wall_th = GR_WALL
         self.hole_diam = GR_HOLE_D  # magnet/bolt hole diameter
+        self.modular_labels = False
         for k, v in kwargs.items():
             if k in self.__dict__:
                 self.__dict__[k] = v
@@ -128,10 +129,16 @@ class GridfinityBox(GridfinityObject):
             axis_label = {"length": "Lengthwise", "width": "Widthwise", "both": "Both axes"}
             s.append("  %s scoops with %.2f mm radius" % (axis_label.get(self.scoop_axis, "Lengthwise"), self.scoop_rad))
         if self.labels:
-            s.append(
-                "  Lengthwise label shelf %.2f mm wide with %.2f mm overhang"
-                % (self.label_width, self.label_height)
-            )
+            if self.modular_labels_enabled:
+                s.append(
+                    "  Clip-on modular labels %.2f mm wide, %.2f mm thick"
+                    % (self.label_width, GR_MOD_LABEL_TH)
+                )
+            else:
+                s.append(
+                    "  Lengthwise label shelf %.2f mm wide with %.2f mm overhang"
+                    % (self.label_width, self.label_height)
+                )
         if self.length_div:
             xl = (self.inner_l - GR_DIV_WALL * (self.length_div)) / (
                     self.length_div + 1
@@ -206,6 +213,15 @@ class GridfinityBox(GridfinityObject):
         for e in (rd, rl, rs):
             if e is not None:
                 r = r.union(e)
+        # Modular labels: cut lip slots and add snap bumps
+        if self.modular_labels_enabled:
+            mod_slots = self._render_modular_label_slots()
+            if mod_slots is not None:
+                r = r.cut(mod_slots)
+            mod_bumps = self._render_modular_label_bumps()
+            if mod_bumps is not None:
+                r = r.union(mod_bumps)
+
         # if not self.solid and self.fillet_interior:
         #     heights = [GR_FLOOR]
         #     if self.labels:
@@ -278,6 +294,16 @@ class GridfinityBox(GridfinityObject):
     @property
     def has_dividers(self):
         return self.length_div > 0 or self.width_div > 0
+
+    @property
+    def modular_labels_enabled(self):
+        """Modular labels work only if labels=True and box is either
+        not solid, or solid with solid_ratio < 0.5 and height_u > 2."""
+        if not self.modular_labels or not self.labels:
+            return False
+        if self.solid:
+            return self.solid_ratio < 0.5 and self.height_u > 2
+        return True
 
     @property
     def interior_solid(self):
@@ -537,6 +563,8 @@ class GridfinityBox(GridfinityObject):
     def render_labels(self):
         if not self.labels or self.solid:
             return None
+        if self.modular_labels_enabled:
+            return self._render_modular_label_shelves()
         # back wall label flange with compensated width and height
         lw = self.label_width + self.lip_width
         rs = (
@@ -577,6 +605,375 @@ class GridfinityBox(GridfinityObject):
             ]
             r = r.union(composite_from_pts(rsc, pts))
         return r
+
+    def _compartment_x_ranges(self):
+        """Returns list of (x_start, x_end) tuples for each compartment along X."""
+        boundaries = [-self.half_in]
+        if self.length_div > 0:
+            for xp in self._length_div_positions():
+                boundaries.append(xp - GR_DIV_WALL / 2)
+                boundaries.append(xp + GR_DIV_WALL / 2)
+        boundaries.append(-self.half_in + self.inner_l)
+        ranges = []
+        for i in range(0, len(boundaries), 2):
+            ranges.append((boundaries[i], boundaries[i + 1]))
+        return ranges
+
+    @property
+    def label_compartment_count(self):
+        """Number of label compartments (1 + number of length dividers)."""
+        return self.length_div + 1
+
+    @property
+    def unique_label_indices(self):
+        """Returns list of compartment indices with unique label widths.
+        Compartments with the same X width produce identical labels."""
+        ranges = self._compartment_x_ranges()
+        seen_widths = []
+        indices = []
+        for i, (xs, xe) in enumerate(ranges):
+            w = round(xe - xs, 3)
+            if w not in seen_widths:
+                seen_widths.append(w)
+                indices.append(i)
+        return indices
+
+    def _label_y_position(self):
+        """Y coordinate of the label area start (back wall side).
+        Same positioning as standard labels."""
+        lw = self.label_width + self.lip_width
+        return -lw + self.outer_w / 2 + self.half_w + self.wall_th / 4
+
+    def _modular_label_wall_offset(self):
+        """Offset from wall/divider face for lip cut placement.
+        label_width - GR_MOD_SHELF_INSET so bottom shelf protrudes for easier insertion."""
+        return self.label_width - GR_MOD_SHELF_INSET
+
+    def _valid_modular_label_y_sections(self):
+        """Returns list of ('wall'/'div', face_y) for label sections with enough space.
+        Skips sections where distance to opposite boundary < 5mm after lip cut."""
+        back_inner = self.half_w + self.inner_w / 2
+        front_inner = self.half_w - self.inner_w / 2
+        wall_offset = self._modular_label_wall_offset()
+        slot_y = self.label_width + 5.0
+        min_clearance = 5.0
+
+        # Build sorted list of Y boundaries (front to back)
+        # Each label face and its opposite boundary
+        boundaries = [front_inner]
+        if self.width_div > 0:
+            for yp in self._width_div_positions():
+                boundaries.append(yp - GR_DIV_WALL / 2)
+                boundaries.append(yp + GR_DIV_WALL / 2)
+        boundaries.append(back_inner)
+        boundaries.sort()
+
+        # Candidate label faces: back wall + each divider's -Y face
+        candidates = [("wall", back_inner)]
+        if self.width_div > 0:
+            for yp in self._width_div_positions():
+                candidates.append(("div", yp - GR_DIV_WALL / 2))
+
+        valid = []
+        for kind, face_y in candidates:
+            # Label extends from face_y toward -Y by (wall_offset + slot_y)
+            needed_y = wall_offset + slot_y
+            end_y = face_y - needed_y
+            # Find the opposite boundary (closest boundary below face_y)
+            opposite = front_inner
+            for b in boundaries:
+                if b < face_y - 0.01:
+                    opposite = b
+            clearance = end_y - opposite
+            if clearance >= min_clearance:
+                valid.append((kind, face_y))
+        return valid
+
+    def _render_modular_label_shelves(self):
+        """Bottom shelves on SIDE walls and width dividers for label support.
+        Flat top (label rests here), 45 deg chamfer on bottom for FDM printability.
+        Like the lip profile but inverted: flat top, angled bottom."""
+        shelf_depth = 1.6
+        shelf_th = shelf_depth  # so 45° chamfer spans entire width
+        chamfer = shelf_depth - 0.01  # 45° from free edge all the way to wall
+
+        # Exact Z where lip chamfer starts (matches render_interior)
+        wall_u = self.wall_th - GR_WALL
+        z_lip = self.floor_h - GR_BASE_CLR + (self.int_height + wall_u) + GR_TOL
+        label_top_z = z_lip - GR_MOD_TOL
+        shelf_top_z = label_top_z - GR_MOD_LABEL_TH + 1.0  # 1mm higher
+        shelf_bot_z = shelf_top_z - shelf_th
+
+        # Same shelf Y length everywhere (wall and divider)
+        shelf_y = self.label_width
+
+        def make_shelves(y_len, depth, thickness, chamf):
+            base = cq.Workplane("XY").rect(depth, y_len).extrude(thickness)
+            try:
+                left = base.faces("<Z").edges(">X").chamfer(chamf)
+            except Exception:
+                left = base
+            try:
+                right = base.faces("<Z").edges("<X").chamfer(chamf)
+            except Exception:
+                right = base
+            return left, right
+
+        shelf_left, shelf_right = make_shelves(shelf_y, shelf_depth, shelf_th, chamfer)
+
+        # Top shelf: identical to lip lower chamfer, shorter by GR_MOD_SHELF_INSET
+        top_shelf_dim = self.under_h
+        top_chamfer = top_shelf_dim - 0.01
+        top_shelf_y = shelf_y - GR_MOD_SHELF_INSET
+        top_left, top_right = make_shelves(top_shelf_y, top_shelf_dim, top_shelf_dim, top_chamfer)
+
+        # Collect Y centers for all valid sections
+        # Shelf back edge flush with face, extending toward -Y
+        shelf_positions = []  # list of (shelf_yc, top_yc)
+        for kind, face_y in self._valid_modular_label_y_sections():
+            shelf_yc = face_y - shelf_y / 2
+            top_yc = face_y - top_shelf_y / 2
+            shelf_positions.append((shelf_yc, top_yc))
+
+        # Determine outer wall X positions
+        outer_lx = -self.half_in + shelf_depth / 2
+        outer_rx = -self.half_in + self.inner_l - shelf_depth / 2
+
+        r = None
+        for xs, xe in self._compartment_x_ranges():
+            lx = xs + shelf_depth / 2
+            rx = xe - shelf_depth / 2
+            is_left_outer = abs(lx - outer_lx) < 0.01
+            is_right_outer = abs(rx - outer_rx) < 0.01
+
+            for shelf_yc, top_yc in shelf_positions:
+                # Bottom shelves
+                sl = shelf_left.translate((lx, shelf_yc, shelf_bot_z))
+                sr = shelf_right.translate((rx, shelf_yc, shelf_bot_z))
+                r = sl.union(sr) if r is None else r.union(sl).union(sr)
+                # Top shelves (always — intersect with shell clips redundant parts)
+                r = r.union(top_left.translate((lx, top_yc, z_lip)))
+                r = r.union(top_right.translate((rx, top_yc, z_lip)))
+
+        # Clip shelves at rounded corners using the shell solid
+        r = r.intersect(self.render_shell(as_solid=True))
+        return r
+
+    def _render_modular_label_slots(self):
+        """Cut the lip overhang on SIDE WALLS where label channels pass.
+        17mm along Y (label_width + 5), 1.3mm deep in X (under_h = chamfer only)."""
+        if not self.modular_labels_enabled:
+            return None
+        if self.no_lip:
+            return None
+
+        cut_x = self.under_h  # 1.3mm — lip chamfer protrusion depth
+        slot_y = self.label_width + 5.0  # 17mm along side wall
+
+        # Z: from lip start upward through full lip height
+        wall_u = self.wall_th - GR_WALL
+        z_bot = self.floor_h - GR_BASE_CLR + (self.int_height + wall_u) + GR_TOL
+        cut_z = GR_LIP_H
+
+        # Outer side wall inner face X positions
+        left_xc = -self.half_in + cut_x / 2
+        right_xc = -self.half_in + self.inner_l - cut_x / 2
+
+        # Offset from wall/divider so bottom shelf protrudes for easier insertion
+        wall_offset = self._modular_label_wall_offset()
+
+        # Collect valid label channel Y centers
+        slot_ycs = []
+        for kind, face_y in self._valid_modular_label_y_sections():
+            slot_ycs.append(face_y - wall_offset - slot_y / 2)
+
+        r = None
+        for yc in slot_ycs:
+            for xc in [left_xc, right_xc]:
+                slot = (
+                    cq.Workplane("XY")
+                    .rect(cut_x, slot_y)
+                    .extrude(cut_z)
+                    .translate((xc, yc, z_bot))
+                )
+                r = slot if r is None else r.union(slot)
+        return r
+
+    def _render_modular_label_bumps(self):
+        """Snap bumps on SIDE WALLS inside the label channel.
+        Top view (XY): diamond shape — 45° tapers on Y ends guide label in.
+        Side view (XZ): rectangular.
+        Height matches shelf height."""
+        if not self.modular_labels_enabled:
+            return None
+
+        bump_x = GR_MOD_SNAP_DEPTH  # 0.5mm protrusion from wall
+        bump_y_mid = GR_MOD_SNAP_W  # 1.0mm vertical middle section
+        taper_y = bump_x            # 0.5mm taper at 45° on each Y end
+        bump_y_total = bump_y_mid + 2 * taper_y  # 2.0mm total Y extent
+        # Match shelf height
+        shelf_depth = 1.6
+        bump_z = shelf_depth
+
+        # Z position: bump sits ON TOP of the shelf
+        # Exact Z where lip chamfer starts (matches render_interior)
+        wall_u = self.wall_th - GR_WALL
+        z_lip = self.floor_h - GR_BASE_CLR + (self.int_height + wall_u) + GR_TOL
+        label_top_z = z_lip - GR_MOD_TOL
+        shelf_top_z = label_top_z - GR_MOD_LABEL_TH + 1.0
+        bump_bot_z = shelf_top_z
+
+        # Diamond profile in XY plane (top view):
+        # Y=0 at center, X=0 at wall face, X=bump_x is max protrusion
+        hy = bump_y_total / 2
+
+        bump_gap = 1.0 + self.inner_rad
+
+        # Left bump (protrudes in +X from left wall)
+        bump_left = (
+            cq.Workplane("XY")
+            .moveTo(0, -hy)                      # wall, Y-min
+            .lineTo(bump_x, -hy + taper_y)       # tip, after entry taper
+            .lineTo(bump_x, hy - taper_y)        # tip, before exit taper
+            .lineTo(0, hy)                        # wall, Y-max
+            .close()
+            .extrude(bump_z)
+        )
+        # Right bump (protrudes in -X from right wall)
+        bump_right = (
+            cq.Workplane("XY")
+            .moveTo(0, -hy)
+            .lineTo(-bump_x, -hy + taper_y)
+            .lineTo(-bump_x, hy - taper_y)
+            .lineTo(0, hy)
+            .close()
+            .extrude(bump_z)
+        )
+
+        r = None
+        for kind, face_y in self._valid_modular_label_y_sections():
+            bump_yc = face_y - bump_gap - hy
+            for xs, xe in self._compartment_x_ranges():
+                lb = bump_left.translate((xs, bump_yc, bump_bot_z))
+                rb = bump_right.translate((xe, bump_yc, bump_bot_z))
+                if r is None:
+                    r = lb.union(rb)
+                else:
+                    r = r.union(lb).union(rb)
+
+        return r
+
+    def render_modular_label(self, compartment_index=0):
+        """Renders a clip-on label plate for a specific compartment.
+        Flat plate with rounded back corners (A), side grooves (B),
+        finger notch at front (L). Matches user's hand-drawn scheme."""
+        if not self.modular_labels_enabled:
+            return None
+
+        ranges = self._compartment_x_ranges()
+        if compartment_index >= len(ranges):
+            return None
+        xs, xe = ranges[compartment_index]
+        label_x = xe - xs - 2 * GR_MOD_CLR
+        label_y = self.label_width
+        label_z = GR_MOD_LABEL_TH
+
+        if label_x <= 0:
+            return None
+
+        # (A) Rounded corners — match box interior radius
+        corner_rad = max(0.5, self.inner_rad - GR_MOD_CLR)
+
+        # Start with fully rounded rect, then square off front corners
+        body = (
+            cq.Workplane("XY")
+            .placeSketch(rounded_rect_sketch(label_x, label_y, corner_rad))
+            .extrude(label_z)
+        )
+        # Fill in front corners to make them square (only back corners stay rounded)
+        front_fill_y = corner_rad
+        if front_fill_y > 0.1:
+            for sx in [-1, 1]:
+                fill = (
+                    cq.Workplane("XY")
+                    .rect(corner_rad, front_fill_y)
+                    .extrude(label_z)
+                    .translate((sx * (label_x / 2 - corner_rad / 2),
+                                -label_y / 2 + front_fill_y / 2, 0))
+                )
+                body = body.union(fill)
+
+        # (B) Side grooves — diamond shape matching box bumps + 0.2mm clearance
+        offset = 0.2
+        groove_x = GR_MOD_SNAP_DEPTH + offset       # 0.7mm depth into label edge
+        groove_taper_y = groove_x                     # 45° taper maintained
+        groove_y_mid = GR_MOD_SNAP_W + 2 * offset   # 1.4mm flat middle
+        groove_hy = (groove_y_mid + 2 * groove_taper_y) / 2  # 1.4mm half-height
+
+        # Groove Y position on label: match bump position relative to wall face
+        bump_gap = 1.0 + self.inner_rad
+        bump_hy = (GR_MOD_SNAP_W + 2 * GR_MOD_SNAP_DEPTH) / 2
+        groove_yc = label_y / 2 - bump_gap - bump_hy
+
+        for sx in [-1, 1]:
+            # Groove cuts INWARD: left edge cuts toward +X, right toward -X
+            groove = (
+                cq.Workplane("XY")
+                .moveTo(0, -groove_hy)
+                .lineTo(-sx * groove_x, -groove_hy + groove_taper_y)
+                .lineTo(-sx * groove_x, groove_hy - groove_taper_y)
+                .lineTo(0, groove_hy)
+                .close()
+                .extrude(label_z + 0.2)
+                .translate((sx * label_x / 2, groove_yc, -0.1))
+            )
+            body = body.cut(groove)
+
+        # 45° chamfer on top edges (back + both sides) to match lip chamfer
+        chamf = label_z
+        if chamf > 0.1:
+            # Back edge
+            back_wedge = (
+                cq.Workplane("YZ")
+                .moveTo(label_y / 2 - chamf, label_z - chamf)
+                .lineTo(label_y / 2, label_z - chamf)
+                .lineTo(label_y / 2, label_z)
+                .close()
+                .extrude(label_x + 1, both=True)
+            )
+            body = body.cut(back_wedge)
+            # Left edge
+            left_wedge = (
+                cq.Workplane("XZ")
+                .moveTo(-label_x / 2 + chamf, label_z - chamf)
+                .lineTo(-label_x / 2, label_z - chamf)
+                .lineTo(-label_x / 2, label_z)
+                .close()
+                .extrude(label_y + 1, both=True)
+            )
+            body = body.cut(left_wedge)
+            # Right edge
+            right_wedge = (
+                cq.Workplane("XZ")
+                .moveTo(label_x / 2 - chamf, label_z - chamf)
+                .lineTo(label_x / 2, label_z - chamf)
+                .lineTo(label_x / 2, label_z)
+                .close()
+                .extrude(label_y + 1, both=True)
+            )
+            body = body.cut(right_wedge)
+
+        # (L) Finger notch at front edge (Y-min) for removal
+        notch_w = min(GR_MOD_NOTCH_W, label_x / 3)
+        notch = (
+            cq.Workplane("XY")
+            .rect(notch_w, GR_MOD_NOTCH_D)
+            .extrude(label_z + 0.2)
+            .translate((0, -label_y / 2 + GR_MOD_NOTCH_D / 2, -0.1))
+        )
+        body = body.cut(notch)
+
+        return body
 
     def render_holes(self, obj):
         if not self.holes:

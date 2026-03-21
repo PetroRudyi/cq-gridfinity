@@ -169,6 +169,18 @@ GR_LABEL_SLOT_TH = 2.5
 GR_LABEL_TH = 0.8
 GR_LABEL_H = 31
 
+# Clip-on modular label constants
+GR_MOD_LABEL_TH = 1.2      # label plate thickness (Z)
+GR_MOD_RAIL_TH = 1.0       # bottom shelf thickness
+GR_MOD_SNAP_DEPTH = 0.5    # snap groove depth / bump height
+GR_MOD_SNAP_W = 1.0        # snap groove & bump width (Y direction)
+GR_MOD_SNAP_L = 4.0        # snap bump length along Z (on side walls)
+GR_MOD_TOL = 0.15          # fit tolerance
+GR_MOD_CLR = 0.3           # XY clearance from side walls
+GR_MOD_NOTCH_W = 8.0       # finger notch width (X direction)
+GR_MOD_NOTCH_D = 1.5       # finger notch depth (Y direction)
+GR_MOD_SHELF_INSET = 3.0   # shelf inset from wall/divider for label insertion ease
+
 GR_LATCH_L = 32.5
 GR_LATCH_W = 19.6
 GR_LATCH_H = 7

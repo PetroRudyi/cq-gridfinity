@@ -6,6 +6,7 @@ import argparse
 
 import cqgridfinity
 from cqgridfinity import *
+from cqkit import export_step_file
 
 title = """
   _____      _     _  __ _       _ _           ____
@@ -98,6 +99,12 @@ def main():
         help="Add label strips against each length-wise front wall",
     )
     parser.add_argument(
+        "--modular-labels",
+        action="store_true",
+        default=False,
+        help="Generate separate snap-in modular label pieces (requires -l)",
+    )
+    parser.add_argument(
         "-e",
         "--ecolite",
         action="store_true",
@@ -167,6 +174,7 @@ def main():
         scoops=argsd["scoops"],
         scoop_axis=argsd["scoop_axis"],
         labels=argsd["labels"],
+        modular_labels=argsd["modular_labels"],
         lite_style=argsd["ecolite"],
         solid=argsd["solid"],
         solid_ratio=solid_ratio,
@@ -211,7 +219,10 @@ def main():
     if argsd["scoops"]:
         s.append("scoops")
     if argsd["labels"]:
-        s.append("label strips")
+        if argsd["modular_labels"]:
+            s.append("modular label strips")
+        else:
+            s.append("label strips")
     if length_div:
         s.append("%d length-wise walls" % (length_div))
     if width_div:
@@ -239,6 +250,33 @@ def main():
         box.save_step_file(filename=argsd["output"])
         s.append("%s in STEP format" % (fn))
     print(" ".join(s))
+
+    # Save modular label(s) as separate file(s)
+    if box.modular_labels_enabled:
+        n_comp = box.label_compartment_count
+        base, ext = fn.rsplit(".", 1) if "." in fn else (fn, "step")
+        for ci in range(n_comp):
+            label_obj = box.render_modular_label(compartment_index=ci)
+            if label_obj is None:
+                continue
+            suffix = "_label_%d" % (ci + 1) if n_comp > 1 else "_label"
+            label_fn = base + suffix + "." + ext
+            if ext == "stl":
+                from OCP.BRepMesh import BRepMesh_IncrementalMesh
+                from OCP.StlAPI import StlAPI_Writer
+
+                obj = label_obj.val().wrapped
+                mesh = BRepMesh_IncrementalMesh(obj, 1e-2, True, 0.1, True)
+                mesh.Perform()
+                writer = StlAPI_Writer()
+                writer.Write(obj, label_fn)
+            elif ext == "svg":
+                from cadquery import exporters
+
+                exporters.export(label_obj, label_fn)
+            else:
+                export_step_file(label_obj, label_fn)
+            print("  Clip-on label saved as %s" % label_fn)
 
 
 if __name__ == "__main__":

@@ -241,7 +241,10 @@ class GridfinityObject:
                     else:
                         fn = fn + "_scoops"
                 if self.labels:
-                    fn = fn + "_labels"
+                    if self.modular_labels_enabled:
+                        fn = fn + "_modlabels"
+                    else:
+                        fn = fn + "_labels"
         elif isinstance(self, GridfinityRuggedBox):
             fn = fn + "x%d" % (self.height_u)
             if self._obj_label is not None:
